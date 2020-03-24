@@ -323,13 +323,15 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err
 
 	// second connection is the sender, time to staple connections
 	var wg sync.WaitGroup
+	var deleteIt bool
 	wg.Add(1)
 
 	// start piping
 	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
 		log.Debug("starting pipes")
-		pipe(com1.Connection(), com2.Connection())
+		err = pipe(com1.Connection(), com2.Connection())
 		wg.Done()
+		deleteIt = err != nil
 		log.Debug("done piping")
 	}(otherConnection, c, &wg)
 
@@ -346,7 +348,19 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err
 	wg.Wait()
 
 	// delete room
-	s.deleteRoom(room)
+	if deleteIt {
+		s.deleteRoom(room)
+	} else {
+		s.rooms.Lock()
+		s.rooms.rooms[room] = roomInfo{
+			first:    s.rooms.rooms[room].first,
+			second:   nil,
+			password: s.rooms.rooms[room].password,
+			opened:   s.rooms.rooms[room].opened,
+			full:     false,
+		}
+		s.rooms.Unlock()
+	}
 	return
 }
 
@@ -398,30 +412,31 @@ func chanFromConn(conn net.Conn) chan []byte {
 
 // pipe creates a full-duplex pipe between the two sockets and
 // transfers data from one to the other.
-func pipe(conn1 net.Conn, conn2 net.Conn) {
-	chan1 := chanFromConn(conn1)
-	chan2 := chanFromConn(conn2)
+func pipe(host net.Conn, client net.Conn) error {
+	chan1 := chanFromConn(host)
+	chan2 := chanFromConn(client)
 
 	for {
 		select {
 		case b1 := <-chan1:
 			if b1 == nil {
-				return
+				return fmt.Errorf("Host exited")
 			}
-			conn2.Write(b1)
+			client.Write(b1)
 
 		case b2 := <-chan2:
 			if b2 == nil {
-				return
+				return nil
 			}
-			conn1.Write(b2)
+			host.Write(b2)
 		}
 	}
+	return fmt.Errorf("Host exited")
 }
 
 // ConnectToTCPServer will initiate a new connection
 // to the specified address, room with optional time limit
-func ConnectToTCPServer(address, password, room, room_pass string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
+func ConnectToTCPServer(address, password, room, roomPass string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
 	if len(timelimit) > 0 {
 		c, err = comm.NewConnection(address, timelimit[0])
 	} else {
@@ -508,7 +523,7 @@ func ConnectToTCPServer(address, password, room, room_pass string, timelimit ...
 		return
 	}
 	if bytes.Equal(data, []byte("need pass")) {
-		bSend, err = crypt.Encrypt([]byte(room_pass), strongKeyForEncryption)
+		bSend, err = crypt.Encrypt([]byte(roomPass), strongKeyForEncryption)
 		if err != nil {
 			return
 		}
