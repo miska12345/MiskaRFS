@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/miska12345/MiskaRFS/src/logger"
+	msg "github.com/miska12345/MiskaRFS/src/message"
 )
 
 const PERM_DENIED = "PERMISSION DENIED"
@@ -28,7 +28,7 @@ func Init(baseDir string, invisibleFiles []string, readOnly bool) (fsc *FSConfig
 
 	_, err = ioutil.ReadDir(fsc.baseDir)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	fsc.invisibleFiles = make(map[string]bool)
@@ -42,16 +42,17 @@ func Init(baseDir string, invisibleFiles []string, readOnly bool) (fsc *FSConfig
 	return
 }
 
-func (fs *FSConfig) ListFiles(args ...string) (res string) {
+// ListFiles lists all the visible files under current directory
+func (fs *FSConfig) ListFiles(args ...string) (fres *msg.Message) {
 	var buf strings.Builder
 	f, err := os.Open(fs.currentDir)
 	if err != nil {
-		return err.Error()
+		return msg.New(msg.TYPE_ERROR, err.Error())
 	}
 	list, err := f.Readdir(-1)
 	f.Close()
 	if err != nil {
-		return err.Error()
+		return msg.New(msg.TYPE_ERROR, err.Error())
 	}
 	sort.Slice(list, func(i, j int) bool {
 		if list[i].IsDir() && !list[j].IsDir() {
@@ -74,33 +75,33 @@ func (fs *FSConfig) ListFiles(args ...string) (res string) {
 		}
 		buf.WriteString(fmt.Sprintf("%d/%d/%d\t%s\n", v.ModTime().Month(), v.ModTime().Day(), v.ModTime().Year(), fname))
 	}
-	return buf.String()
+	return msg.New(msg.TYPE_RESPONSE, buf.String())
 }
 
-func (fs *FSConfig) CD(args ...string) string {
+func (fs *FSConfig) CD(args ...string) *msg.Message {
 	if len(args) == 0 {
-		return fs.currentDir
+		return msg.New(msg.TYPE_RESPONSE, fs.currentDir)
 	}
 	if _, err := os.Stat(fs.currentDir); os.IsNotExist(err) {
-
+		return msg.New(msg.TYPE_ERROR, err.Error())
 	}
 	fs.currentDir = args[0]
-	return fs.currentDir
+	return msg.New(msg.TYPE_RESPONSE, fs.currentDir)
 }
 
-func (fs *FSConfig) Mkdir(args ...string) string {
+func (fs *FSConfig) Mkdir(args ...string) *msg.Message {
 	for _, v := range args {
 		err := os.Mkdir(filepath.Join(fs.currentDir, v), os.ModeDir)
 		if err != nil {
-			log.Error(err)
+			return msg.New(msg.TYPE_ERROR, err.Error())
 		}
 	}
 	return fs.ListFiles()
 }
 
-func (fs *FSConfig) Remove(args ...string) string {
+func (fs *FSConfig) Remove(args ...string) *msg.Message {
 	if fs.readOnly {
-		return PERM_DENIED
+		return msg.New(msg.TYPE_ERROR, PERM_DENIED)
 	}
 	for _, v := range args {
 		// Skip all the invisible files

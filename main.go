@@ -5,6 +5,7 @@ import (
 
 	"github.com/miska12345/MiskaRFS/src/fs"
 	"github.com/miska12345/MiskaRFS/src/host"
+	msg "github.com/miska12345/MiskaRFS/src/message"
 )
 
 func main() {
@@ -18,9 +19,9 @@ func main() {
 		BaseDir:        "src",
 		InvisibleFiles: []string{"tcp2"},
 		ReadOnly:       false,
-		AddFeatures: map[string]func(args ...string) string{
-			"version": func(args ...string) string {
-				return "v1.0"
+		AddFeatures: map[string]func(args ...string) *msg.Message{
+			"version": func(args ...string) *msg.Message {
+				return msg.New(msg.TYPE_RESPONSE, "v1.0")
 			},
 		},
 	})

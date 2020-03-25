@@ -11,12 +11,13 @@ import (
 	"github.com/miska12345/MiskaRFS/src/comm"
 	"github.com/miska12345/MiskaRFS/src/fs"
 	log "github.com/miska12345/MiskaRFS/src/logger"
+	msg "github.com/miska12345/MiskaRFS/src/message"
 	"github.com/miska12345/MiskaRFS/src/tcp2"
 )
 
 type Host struct {
 	fs                 *fs.FSConfig
-	Features           map[string]func(args ...string) string
+	Features           map[string]func(args ...string) *msg.Message
 	Name               string
 	Pass               string
 	CurrentConnections int
@@ -38,9 +39,12 @@ type ModuleConfig struct {
 	BaseDir        string
 	InvisibleFiles []string
 	ReadOnly       bool
-	AddFeatures    map[string]func(args ...string) string
+	AddFeatures    map[string]func(args ...string) *msg.Message
 }
 
+const ERR_REQUEST = -1
+
+// Run starts the host on this machine with the given configuration
 func Run(modConfig *ModuleConfig) (h *Host, err error) {
 	h = new(Host)
 	h.Name = modConfig.Name
@@ -48,7 +52,7 @@ func Run(modConfig *ModuleConfig) (h *Host, err error) {
 	if err != nil {
 		return
 	}
-	h.Features = make(map[string]func(args ...string) string)
+	h.Features = make(map[string]func(args ...string) *msg.Message)
 
 	err = h.initializeFileSystem()
 	if err != nil {
@@ -89,7 +93,8 @@ func (h *Host) start() (err error) {
 	}
 }
 
-func (h *Host) AddFeature(cmd string, f func(args ...string) string) error {
+// AddFeature adds a command-func pair to the host for remote calls
+func (h *Host) AddFeature(cmd string, f func(args ...string) *msg.Message) error {
 	if _, ok := h.Features[cmd]; ok {
 		return fmt.Errorf("CMD %s already exists", cmd)
 	}
@@ -98,7 +103,7 @@ func (h *Host) AddFeature(cmd string, f func(args ...string) string) error {
 	return nil
 }
 
-func (h *Host) handleCMD(cmd string) (res string, err error) {
+func (h *Host) handleCMD(cmd string) (res *msg.Message, err error) {
 	fmt.Println(cmd)
 	s := strings.Split(cmd, " ")
 	fmt.Println(s)
@@ -111,7 +116,7 @@ func (h *Host) handleCMD(cmd string) (res string, err error) {
 			err = fmt.Errorf("No such command")
 			return
 		}
-		res = string(h.Features[s[0]](s[1:]...))
+		res = h.Features[s[0]](s[1:]...)
 	}
 	return
 }
@@ -122,11 +127,16 @@ func (h *Host) handleRequest(c *client) error {
 		log.Debugf("Handle CMD %s", c.Req.Body)
 		res, err := h.handleCMD(c.Req.Body)
 		if err != nil {
-			res = err.Error()
+			res = msg.New(msg.TYPE_ERROR, err.Error())
 		}
 		log.Debugf("Result: %s", res)
-		n, err := c.Comm.Write([]byte(res))
-		log.Debugf("Wrote result to client %d bytes %s", n, err)
+		bys, err := res.ConvertToNetForm()
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		n, err := c.Comm.Write(bys)
+		log.Debugf("Wrote %d bytes", n)
 		return err
 	default:
 		log.Warnf("Unknown request type %s", c.Req.Type)
@@ -134,12 +144,12 @@ func (h *Host) handleRequest(c *client) error {
 	return nil
 }
 
-func initializeCMD(fs map[string]func(args ...string) string) {
-	fs["echo"] = func(args ...string) string {
+func initializeCMD(fs map[string]func(args ...string) *msg.Message) {
+	fs["echo"] = func(args ...string) *msg.Message {
 		if len(args) > 0 {
-			return args[0]
+			return msg.New(msg.TYPE_RESPONSE, args[0])
 		}
-		return ""
+		return msg.New(msg.TYPE_ERROR, "<No Param>")
 	}
 }
 
@@ -151,7 +161,7 @@ func (h *Host) initializeFileSystem() (err error) {
 	return nil
 }
 
-func (h *Host) initializeCustomCMD(m map[string]func(args ...string) string) error {
+func (h *Host) initializeCustomCMD(m map[string]func(args ...string) *msg.Message) error {
 	for k := range m {
 		if _, exist := h.Features[k]; exist {
 			return fmt.Errorf("Duplicate function name found: %s", k)
