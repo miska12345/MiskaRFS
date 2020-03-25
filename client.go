@@ -2,32 +2,44 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"os"
+	"log"
+	"time"
 
-	"github.com/miska12345/MiskaRFS/src/tcp"
+	"github.com/miska12345/MiskaRFS/src/host"
+	"github.com/miska12345/MiskaRFS/src/tcp2"
 )
 
 func main() {
-	c1, _, _, err := tcp.ConnectToTCPServer("localhost:8080", "", "what", os.Args[1])
+	c1, err := tcp2.ConnectToTCPServer("localhost:8080", "", "admin")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	if os.Args[1] == os.Args[2] {
-		for {
-			var data []byte
-			for {
-				data, err = c1.Receive()
-				if bytes.Equal(data, []byte{1}) {
-					continue
-				}
-				break
-			}
-			fmt.Println(string(data))
+	for {
+		data, _ := c1.Receive()
+		if bytes.Equal(data, []byte("ok")) {
+			log.Print("ok")
+			break
 		}
-
-	} else {
-		c1.Send([]byte("hello pc!"))
 	}
+
+	h := host.Request{
+		Type: "text/cmd",
+		Body: "rm deleteMe",
+	}
+
+	bs, err := json.Marshal(h)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	c1.Send(bs)
+	fmt.Println("Waiting for response")
+	d, err := c1.Receive()
+	fmt.Println(string(d))
+
+	time.Sleep(time.Second)
 }

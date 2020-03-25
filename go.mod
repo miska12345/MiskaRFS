@@ -8,5 +8,6 @@ require (
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/pake v1.1.1
 	github.com/schollz/pake/v2 v2.0.2
+	github.com/stretchr/testify v1.4.0
 	google.golang.org/appengine v1.6.5
 )
