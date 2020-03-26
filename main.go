@@ -9,13 +9,18 @@ import (
 )
 
 func main() {
+	// This program will make this PC accessible via internet
+
+	// Iniotialize the file system
 	_, err := fs.Init("src", []string{}, false)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
+	// Run the host with config
 	_, err = host.Run(&host.ModuleConfig{
-		Name:           "admin",
+		Name:           "pc-admin",
 		BaseDir:        "src",
 		InvisibleFiles: []string{"tcp2"},
 		ReadOnly:       false,
@@ -30,7 +35,6 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	for {
-
-	}
+	forever := make(chan bool)
+	<-forever
 }

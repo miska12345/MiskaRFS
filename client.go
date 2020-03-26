@@ -12,7 +12,8 @@ import (
 )
 
 func main() {
-	c1, err := tcp2.ConnectToTCPServer("localhost:8080", "", "admin")
+	// This program connect to a remote host by name
+	c1, err := tcp2.ConnectToTCPServer("localhost:8080", "", "pc-admin")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -24,6 +25,8 @@ func main() {
 		}
 	}
 
+	// Run ls remotely
+	// Client-server communication is always in packet
 	h := host.Request{
 		Type: "text/cmd",
 		Body: "ls",
@@ -46,6 +49,5 @@ func main() {
 	}
 
 	fmt.Println(bsf.Msg)
-
 	time.Sleep(time.Second)
 }

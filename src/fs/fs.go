@@ -1,3 +1,4 @@
+// Package fs contain APIs for remote file operation
 package fs
 
 import (
@@ -78,6 +79,7 @@ func (fs *FSConfig) ListFiles(args ...string) (fres *msg.Message) {
 	return msg.New(msg.TYPE_RESPONSE, buf.String())
 }
 
+// CD will change the current directory
 func (fs *FSConfig) CD(args ...string) *msg.Message {
 	if len(args) == 0 {
 		return msg.New(msg.TYPE_RESPONSE, fs.currentDir)
@@ -89,6 +91,7 @@ func (fs *FSConfig) CD(args ...string) *msg.Message {
 	return msg.New(msg.TYPE_RESPONSE, fs.currentDir)
 }
 
+// Mkdir will create a new directory
 func (fs *FSConfig) Mkdir(args ...string) *msg.Message {
 	for _, v := range args {
 		err := os.Mkdir(filepath.Join(fs.currentDir, v), os.ModeDir)
@@ -99,6 +102,7 @@ func (fs *FSConfig) Mkdir(args ...string) *msg.Message {
 	return fs.ListFiles()
 }
 
+// Remove will remove the specified files
 func (fs *FSConfig) Remove(args ...string) *msg.Message {
 	if fs.readOnly {
 		return msg.New(msg.TYPE_ERROR, PERM_DENIED)

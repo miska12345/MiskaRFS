@@ -1,4 +1,4 @@
-// package message implements a generic-network-response packet
+// package message implements a generic-network-response interface
 package message
 
 import "encoding/json"
